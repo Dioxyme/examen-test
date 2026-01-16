@@ -1,16 +1,12 @@
-name: Node.js CI/CD to Docker Hub
+name: Node.js CI/CD and Security Scan
 
 on:
   push:
     branches: [ "master", "develop" ]
 
 jobs:
-  build-push-and-scan:
+  build-and-push:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      security-events: write
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -32,7 +28,6 @@ jobs:
       - name: Build and Push Docker image
         run: |
           BRANCH_NAME=$(echo ${GITHUB_REF#refs/heads/})
-          # On build et on push directement
           docker build -t dioxyme/node-app:${BRANCH_NAME} .
           docker push dioxyme/node-app:${BRANCH_NAME}
           
@@ -41,6 +36,13 @@ jobs:
             docker push dioxyme/node-app:latest
           fi
 
+  trivy-scan:
+    runs-on: ubuntu-24.04
+    needs: build-and-push
+    permissions:
+      contents: read
+      security-events: write
+    steps:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@0.33.1
         with:
@@ -48,7 +50,7 @@ jobs:
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
-          exit-code: '1' 
+          exit-code: '1'
           ignore-unfixed: true
 
       - name: Upload Trivy scan results to GitHub Security
